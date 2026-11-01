@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+  <title>Coin Rain — TikTok Coins Game</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,700;0,800;0,900;1,900&family=Rubik:wght@600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Rubik', 'Montserrat', sans-serif;
+      touch-action: none;
+      -webkit-user-select: none;
+      user-select: none;
+      background: radial-gradient(circle at 50% 20%, #1e2638 0%, #0c0f17 100%);
+    }
+
+    /* Анимации UI */
+    @keyframes pulse-red {
+      0%, 100% {
+        box-shadow: inset 0 0 35px 8px rgba(239, 68, 68, 0.9), 0 0 30px rgba(239, 68, 68, 0.8);
+        border-color: #ef4444;
+      }
+      50% {
+        box-shadow: inset 0 0 15px 2px rgba(239, 68, 68, 0.5), 0 0 15px rgba(239, 68, 68, 0.4);
+        border-color: #f87171;
+      }
+    }
+
+    .danger-border {
+      animation: pulse-red 0.4s infinite alternate ease-in-out;
+      border-width: 6px !important;
+    }
+
+    @keyframes text-pop {
+      0% { transform: scale(0.6) rotate(-4deg); opacity: 0; }
+      70% { transform: scale(1.15) rotate(2deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+
+    .animate-pop {
+      animation: text-pop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    @keyframes coin-spin {
+      0% { transform: scaleX(1); }
+      50% { transform: scaleX(0.15); }
+      100% { transform: scaleX(1); }
+    }
+
+    .coin-3d {
+      animation: coin-spin 1.2s infinite linear;
+    }
+
+    /* Полосатая текстура как в оригинальной раскадровке */
+    .curb-pattern {
+      background: repeating-linear-gradient(
+        -45deg,
+        #e3d195,
+        #e3d195 14px,
+        #cbb676 14px,
+        #cbb676 28px
+      );
+    }
+
+    /* Эффект виньетки и вспышки взрыва */
+    .flash-boom {
+      animation: flash-white 0.7s cubic-bezier(0.1, 1, 0.1, 1) forwards;
+    }
+
+    @keyframes flash-white {
+      0% { background-color: rgba(255, 255, 255, 0.95); }
+      100% { background-color: rgba(0, 0, 0, 0); }
+    }
+  </style>
+</head>
+<body class="w-screen h-screen text-white overflow-hidden bg-slate-950 select-none">
+
+  <!-- Повноцінний екран гри без мокапу смартфона -->
+  <div class="relative w-full h-full flex flex-col overflow-hidden" id="gameFrame">
+    
+    <!-- Верхня панель (Тулбар і лічильник монет) -->
+    <header class="absolute top-4 left-4 right-4 z-30 flex items-center justify-between pointer-events-none">
+      <div class="flex items-center gap-2 pointer-events-auto">
+        <div class="flex items-center gap-1.5 bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/10 text-xs sm:text-sm font-bold shadow-lg">
+          <button id="modeBtn" class="text-yellow-400 hover:text-yellow-300 transition-colors flex items-center gap-1.5">
+            <span id="modeIcon">⏱</span>
+            <span id="modeLabel">15s Reel</span>
+          </button>
+        </div>
+        <div class="hidden sm:flex items-center gap-1 bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs text-slate-300">
+          <span>🎮 Move:</span> <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-yellow-300 font-mono text-[11px]">←</kbd> <kbd class="px-1.5 py-0.5 bg-slate-800 rounded text-yellow-300 font-mono text-[11px]">→</kbd> / Mouse
+        </div>
+      </div>
+
+      <!-- TikTok Плашка зі скором монет (HUD по центру) -->
+      <div id="coinHud" class="pointer-events-auto flex items-center gap-2.5 bg-[#171922]/95 border-2 border-yellow-400/90 shadow-[0_4px_24px_rgba(245,158,11,0.5)] px-6 py-2 rounded-full transform transition-transform duration-200">
+        <div class="relative w-9 h-9 flex items-center justify-center">
+          <img id="hudCoinImg" src="https://i.postimg.cc/LscNC5Rp/777.png" alt="Coin" class="w-9 h-9 object-contain drop-shadow" onerror="this.classList.add('hidden'); document.getElementById('hudCoinFallback').classList.remove('hidden');">
+          <div id="hudCoinFallback" class="hidden relative w-9 h-9 rounded-full bg-gradient-to-tr from-amber-600 via-yellow-400 to-amber-200 border-2 border-yellow-200 flex items-center justify-center shadow-md">
+            <span class="text-amber-950 font-black text-base tracking-tighter">$</span>
+            <div class="absolute inset-0 rounded-full bg-white/20 blur-[1px]"></div>
+          </div>
+        </div>
+        <div class="flex flex-col">
+          <span id="coinCountText" class="text-3xl sm:text-4xl font-black text-yellow-400 tracking-tight leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]">0</span>
+        </div>
+        <div class="text-xs text-yellow-200/80 font-bold self-end mb-0.5 ml-1">/ 100</div>
+      </div>
+
+      <!-- Кнопки звуку та рестарту -->
+      <div class="flex items-center gap-2 pointer-events-auto">
+        <button id="soundToggle" class="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-95 shadow-lg transition">
+          <span id="soundIcon">🔊</span>
+        </button>
+        <button id="restartQuickBtn" class="w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/10 flex items-center justify-center hover:bg-black/80 active:scale-95 shadow-lg transition" title="Restart">
+          🔄
+        </button>
+      </div>
+    </header>
+
+    <!-- TikTok Правий сайдбар дій (Лайк, Коменти, Шер) -->
+    <div class="absolute right-4 bottom-24 z-20 flex flex-col items-center space-y-4 pointer-events-none opacity-85 scale-95 sm:scale-100">
+      <div class="flex flex-col items-center">
+        <div class="w-11 h-11 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-red-500 text-2xl shadow-xl">❤️</div>
+        <span class="text-xs font-bold mt-0.5 drop-shadow">128.4K</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-11 h-11 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white text-xl shadow-xl">💬</div>
+        <span class="text-xs font-bold mt-0.5 drop-shadow">4,812</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-11 h-11 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white text-xl shadow-xl">🔖</div>
+        <span class="text-xs font-bold mt-0.5 drop-shadow">34.1K</span>
+      </div>
+      <div class="flex flex-col items-center">
+        <div class="w-11 h-11 rounded-full bg-black/45 backdrop-blur-sm flex items-center justify-center text-white text-xl shadow-xl">🔗</div>
+        <span class="text-xs font-bold mt-0.5 drop-shadow">Share</span>
+      </div>
+      <div class="w-10 h-10 rounded-full bg-black border-2 border-white/50 flex items-center justify-center animate-spin" style="animation-duration: 4s;">
+        <div class="w-4 h-4 rounded-full bg-yellow-400"></div>
+      </div>
+    </div>
+
+    <!-- Ігрове полотно (Canvas) -->
+    <canvas id="gameCanvas" class="w-full h-full block cursor-grab active:cursor-grabbing"></canvas>
+
+    <!-- Оверлей спалаху вибуху -->
+    <div id="flashOverlay" class="absolute inset-0 pointer-events-none z-35 hidden"></div>
+
+    <!-- 1. ЭКРАН ХУКА (0-2 сек): "ПОЙМАЙ 100 И НЕ ТРОНЬ БОМБУ" -->
+    <div id="hookOverlay" class="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 bg-black/35 backdrop-blur-[2px] transition-all duration-300">
+      <div class="bg-gradient-to-b from-[#1b253b]/95 to-[#101726]/95 border-2 border-yellow-400/80 rounded-3xl p-6 text-center max-w-[320px] shadow-[0_15px_40px_rgba(0,0,0,0.8)] animate-pop">
+        <div class="inline-block px-3 py-1 bg-yellow-400/20 text-yellow-300 rounded-full text-xs font-black uppercase tracking-wider mb-2 border border-yellow-400/40">
+          TIKTOK CHALLENGE
+        </div>
+        <h1 class="text-3xl font-black text-white leading-tight uppercase drop-shadow-md mb-2">
+          CATCH <span class="text-yellow-400 underline decoration-yellow-500 decoration-wavy">100</span><br>AND AVOID<br><span class="text-red-500 drop-shadow-[0_2px_12px_rgba(239,68,68,0.8)]">THE BOMB</span>
+        </h1>
+        <p class="text-xs text-blue-200/90 font-medium mb-5">
+          Slide the wallet left and right with your finger or mouse. Each coin awards <span class="text-yellow-400 font-bold">+10 coins</span>!
+        </p>
+
+        <button id="startChallengeBtn" class="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black text-lg tracking-wide uppercase shadow-[0_6px_25px_rgba(245,158,11,0.6)] hover:brightness-110 active:scale-95 transition-all">
+          🔥 START GAME
+        </button>
+
+        <div class="mt-3 flex items-center justify-center gap-2 text-[11px] text-white/60">
+          <span>👈 Move Wallet 👉</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ДРАМАТИЧЕСКАЯ ТАБЛИЧКА "БОМБА!!!" (8-11 сек) -->
+    <div id="dangerBanner" class="absolute top-[32%] left-0 right-0 z-25 flex justify-center pointer-events-none hidden transition-all">
+      <div class="bg-red-600/95 border-4 border-yellow-300 text-yellow-100 font-black text-4xl sm:text-5xl px-8 py-2.5 rounded-2xl tracking-wider uppercase shadow-[0_0_35px_rgba(239,68,68,0.9)] animate-pop transform -rotate-2">
+        💥 BOMB!!!
+      </div>
+    </div>
+
+    <!-- 4. ФИНАЛЬНЫЙ ЭКРАН "БУМ! МИНУС ПОЛОВИНА" / "ТВОЙ РЕКОРД" (11-15 сек) -->
+    <div id="resultModal" class="absolute inset-0 z-35 flex flex-col items-center justify-center p-5 bg-black/75 backdrop-blur-md hidden transition-all duration-300">
+      <div class="w-full max-w-[325px] bg-gradient-to-b from-[#182133] to-[#0d121d] border-2 border-red-500/80 rounded-3xl p-5 text-center shadow-[0_20px_50px_rgba(239,68,68,0.4)] animate-pop">
+        
+        <div class="text-xs uppercase font-extrabold tracking-widest text-slate-400 mb-1">
+          COINS
+        </div>
+
+        <!-- Анимация среза 89 -> 44 (-50%) -->
+        <div class="flex items-center justify-center gap-3 my-2">
+          <span id="finalOriginalScore" class="text-3xl font-black text-slate-400 line-through decoration-red-500 decoration-4">89</span>
+          <span class="text-2xl text-yellow-400 font-black">➔</span>
+          <span id="finalHalvedScore" class="text-5xl font-black text-yellow-400 drop-shadow-[0_0_15px_rgba(250,204,21,0.6)]">44</span>
+        </div>
+
+        <div id="penaltyBadge" class="inline-block bg-red-600/90 text-white font-black text-lg px-4 py-1 rounded-xl shadow-md my-1 animate-bounce">
+          −50% BOMB!
+        </div>
+
+        <div class="my-4">
+          <h2 class="text-2xl font-black uppercase text-white tracking-wide">
+            YOUR RECORD?
+          </h2>
+          <div class="text-2xl text-yellow-400 animate-bounce mt-0.5">↓</div>
+        </div>
+
+        <!-- Кнопки действий -->
+        <div class="flex flex-col gap-2">
+          <button id="retryBtn" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-slate-950 font-black text-base uppercase tracking-wider shadow-lg hover:brightness-110 active:scale-95 transition">
+            🔄 PLAY AGAIN
+          </button>
+          <button id="shareScoreBtn" class="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white/90 font-bold text-xs uppercase tracking-wider border border-white/10 active:scale-95 transition flex items-center justify-center gap-1.5">
+            <span>📋 Copy Result</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Нижня смуга з травою та смугастим бордюром на всю ширину екрана -->
+    <div class="absolute bottom-0 left-0 right-0 h-20 pointer-events-none z-10 flex flex-col">
+      <!-- Трава -->
+      <div class="h-5 bg-[#76c843] border-t-2 border-[#5ca630] shadow-sm"></div>
+      <!-- Смугастий бордюр з розкадровки -->
+      <div class="h-15 flex-1 curb-pattern border-t-2 border-[#b8a25c]"></div>
+    </div>
+
+    <!-- Спливаючий тост зворотного зв'язку -->
+    <div id="toast" class="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-50 bg-black/90 text-white text-xs sm:text-sm px-5 py-2.5 rounded-full border border-yellow-400/50 shadow-xl opacity-0 pointer-events-none transition-opacity duration-300">
+      Result copied!
+    </div>
+
+  </div>
+
+  <script>
+    /* =====================================================================
+       АУДИО-ДВИЖОК (Web Audio API: звуки монет, взрывов, таймера и слоу-мо)
+       ===================================================================== */
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playCoin() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sine';
+        // Звонкий двухтональный перелив TikTok-монетки
+        osc.frequency.setValueAtTime(987.77, now); // B5
+        osc.frequency.exponentialRampToValueAtTime(1318.51, now + 0.08); // E6
+
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.25);
+      }
+
+      playDanger() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.linearRampToValueAtTime(220, now + 0.2);
+
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.22);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.22);
+      }
+
+      playExplosion() {
+        if (!this.enabled || !this.ctx) return;
+        const now = this.ctx.currentTime;
+
+        // Генерация белого шума для взрыва
+        const bufferSize = this.ctx.sampleRate * 0.6;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        // Фильтр низких частот (глухой мощный удар)
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, now);
+        filter.frequency.exponentialRampToValueAtTime(40, now + 0.55);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.7, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.6);
+
+        // Низкочастотный синусоидальный саб-бас
+        const subOsc = this.ctx.createOscillator();
+        const subGain = this.ctx.createGain();
+        subOsc.type = 'sine';
+        subOsc.frequency.setValueAtTime(140, now);
+        subOsc.frequency.exponentialRampToValueAtTime(30, now + 0.5);
+
+        subGain.gain.setValueAtTime(0.5, now);
+        subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        subOsc.connect(subGain);
+        subGain.connect(this.ctx.destination);
+
+        noise.start(now);
+        subOsc.start(now);
+        noise.stop(now + 0.6);
+        subOsc.stop(now + 0.5);
+      }
+
+      playWin() {
+        if (!this.enabled || !this.ctx) return;
+        const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+        notes.forEach((freq, idx) => {
+          const now = this.ctx.currentTime + idx * 0.08;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+
+          gain.gain.setValueAtTime(0.3, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          osc.start(now);
+          osc.stop(now + 0.35);
+        });
+      }
+    }
+
+    const sound = new SoundEngine();
+
+    /* =====================================================================
+       ИГРОВОЙ ДВИЖОК CANVAS И ЛОГИКА СЦЕНАРИЯ TIKTOK
+       ===================================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const gameFrame = document.getElementById('gameFrame');
+
+    // UI элементы
+    const coinCountText = document.getElementById('coinCountText');
+    const coinHud = document.getElementById('coinHud');
+    const hookOverlay = document.getElementById('hookOverlay');
+    const startChallengeBtn = document.getElementById('startChallengeBtn');
+    const dangerBanner = document.getElementById('dangerBanner');
+    const resultModal = document.getElementById('resultModal');
+    const finalOriginalScore = document.getElementById('finalOriginalScore');
+    const finalHalvedScore = document.getElementById('finalHalvedScore');
+    const penaltyBadge = document.getElementById('penaltyBadge');
+    const retryBtn = document.getElementById('retryBtn');
+    const shareScoreBtn = document.getElementById('shareScoreBtn');
+    const soundToggle = document.getElementById('soundToggle');
+    const soundIcon = document.getElementById('soundIcon');
+    const restartQuickBtn = document.getElementById('restartQuickBtn');
+    const modeBtn = document.getElementById('modeBtn');
+    const modeLabel = document.getElementById('modeLabel');
+    const flashOverlay = document.getElementById('flashOverlay');
+    const toast = document.getElementById('toast');
+
+    // Завантаження зображення монетки з посилання користувача
+    const COIN_IMAGE_SRC = 'https://i.postimg.cc/LscNC5Rp/777.png';
+    const coinImg = new Image();
+    coinImg.crossOrigin = 'anonymous';
+    let coinImgLoaded = false;
+    coinImg.onload = () => { coinImgLoaded = true; };
+    coinImg.onerror = () => { coinImgLoaded = false; };
+    coinImg.src = COIN_IMAGE_SRC;
+
+    // Состояние приложения
+    const STATES = {
+      HOOK: 'HOOK',       // 1. ХУК (0-2 сек)
+      PLAYING: 'PLAYING', // 2. СБОР (2-8 сек)
+      SLOWMO: 'SLOWMO',   // 3. ПОЧТИ (8-11 сек)
+      BOOM: 'BOOM'        // 4. БУМ (11-15 сек)
+    };
+
+    let currentState = STATES.HOOK;
+    let gameMode = 'TIKTOK_REEL'; // 'TIKTOK_REEL' (15 секунд строго по флоу) или 'ENDLESS' (своя игра)
+
+    let score = 0;
+    let originalScoreBeforeBoom = 89;
+    let halvedScore = 44;
+    let gameTime = 0; // в секундах
+    let lastTimestamp = 0;
+    let timeScale = 1.0; // 1.0 = нормальная скорость, 0.28 = драматическое Slow-Mo
+
+    // Размеры холста
+    let width = 0;
+    let height = 0;
+    let dpr = 1;
+
+    // Игровые объекты
+    let wallet = {
+      x: 0,
+      y: 0,
+      w: 120,
+      h: 52,
+      targetX: 0,
+      wobble: 0
+    };
+
+    let coins = [];
+    let bombs = [];
+    let particles = [];
+    let floatingTexts = [];
+    let clouds = [
+      { x: 30, y: 70, scale: 0.9, speed: 8 },
+      { x: 220, y: 110, scale: 1.2, speed: 12 },
+      { x: 450, y: 60, scale: 0.8, speed: 9 },
+      { x: 720, y: 90, scale: 1.1, speed: 14 },
+      { x: 1050, y: 50, scale: 0.7, speed: 7 },
+      { x: 1350, y: 120, scale: 1.0, speed: 11 }
+    ];
+
+    // Таймеры спавна
+    let coinSpawnTimer = 0;
+    let bombSpawnTimer = 0;
+    let slowMoTriggered = false;
+    let scriptedBombSpawned = false;
+
+    // Ресайз холста под размер всего окна браузера
+    function resizeCanvas() {
+      const rect = gameFrame.getBoundingClientRect();
+      dpr = window.devicePixelRatio || 1;
+      width = rect.width;
+      height = rect.height;
+
+      canvas.width = width * dpr;
+      canvas.height = height * dpr;
+      ctx.scale(dpr, dpr);
+
+      // Позиція гаманця над лінією землі (трава + бордюр = 80px)
+      const groundHeight = 80;
+      wallet.w = Math.min(160, Math.max(110, width * 0.16));
+      wallet.h = wallet.w * 0.44;
+      wallet.y = height - groundHeight - wallet.h + 8;
+      if (wallet.x === 0 || wallet.x > width) {
+        wallet.x = (width - wallet.w) / 2;
+        wallet.targetX = wallet.x;
+      }
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+
+    /* =====================================================================
+       СПРАЙТЫ И ОТРИСОВКА В СТИЛЕ РАСКАДРОВКИ
+       ===================================================================== */
+
+    // 1. Отрисовка фона (голубое небо как в кадре 1)
+    function drawSky() {
+      const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+      skyGradient.addColorStop(0, '#59b6fe');
+      skyGradient.addColorStop(0.7, '#75c6ff');
+      skyGradient.addColorStop(1, '#92d6ff');
+      ctx.fillStyle = skyGradient;
+      ctx.fillRect(0, 0, width, height);
+
+      // Облака
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+      clouds.forEach(cloud => {
+        drawCartoonCloud(cloud.x, cloud.y, cloud.scale);
+      });
+    }
+
+    function drawCartoonCloud(cx, cy, s) {
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.beginPath();
+      ctx.arc(0, 0, 18 * s, 0, Math.PI * 2);
+      ctx.arc(16 * s, -6 * s, 22 * s, 0, Math.PI * 2);
+      ctx.arc(36 * s, 0, 17 * s, 0, Math.PI * 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 2. Отрисовка кошелька (точь-в-точь как коричневый кожаный кошелек с застежкой в кадре)
+    function drawWallet(x, y, w, h, wobble) {
+      ctx.save();
+      ctx.translate(x + w / 2, y + h / 2);
+      ctx.rotate(wobble);
+      ctx.translate(-w / 2, -h / 2);
+
+      // Тень кошелька
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.25)';
+      ctx.beginPath();
+      ctx.roundRect(4, h - 2, w - 8, 12, 6);
+      ctx.fill();
+
+      // Основа кошелька (коричневая кожа)
+      const walletGrad = ctx.createLinearGradient(0, 0, 0, h);
+      walletGrad.addColorStop(0, '#a3633b');
+      walletGrad.addColorStop(0.5, '#8b4f2a');
+      walletGrad.addColorStop(1, '#69381b');
+
+      ctx.fillStyle = walletGrad;
+      ctx.strokeStyle = '#4e2710';
+      ctx.lineWidth = 3.5;
+
+      ctx.beginPath();
+      ctx.roundRect(0, 0, w, h, 14);
+      ctx.fill();
+      ctx.stroke();
+
+      // Линия шва кошелька
+      ctx.strokeStyle = '#c48253';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.roundRect(4, 4, w - 8, h - 8, 10);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Откидной клапан / кармашек справа
+      ctx.fillStyle = '#7a4220';
+      ctx.strokeStyle = '#4e2710';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(w * 0.65, 8, w * 0.32, h - 16, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      // Золотая застежка-кнопка (как в референсе)
+      const snapX = w * 0.81;
+      const snapY = h * 0.5;
+      const snapGrad = ctx.createRadialGradient(snapX - 2, snapY - 2, 1, snapX, snapY, 7);
+      snapGrad.addColorStop(0, '#fff4b8');
+      snapGrad.addColorStop(0.6, '#f3ba2f');
+      snapGrad.addColorStop(1, '#b07f12');
+
+      ctx.fillStyle = snapGrad;
+      ctx.strokeStyle = '#5a3d00';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(snapX, snapY, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.restore();
+    }
+
+    // 3. Отрисовка золотой монеты
+    function drawCoin(item) {
+      ctx.save();
+      ctx.translate(item.x, item.y);
+      ctx.rotate(item.rot);
+
+      if (coinImgLoaded && coinImg.naturalWidth > 0) {
+        // Тінь і золотисте сяйво навколо монети
+        ctx.shadowColor = 'rgba(245, 158, 11, 0.65)';
+        ctx.shadowBlur = 12;
+
+        const size = item.r * 2.2;
+        ctx.drawImage(coinImg, -size / 2, -size / 2, size, size);
+      } else {
+        // Резервний процедурний рендер на випадок відсутності мережі
+        ctx.fillStyle = '#b37708';
+        ctx.beginPath();
+        ctx.arc(0, 0, item.r + 2, 0, Math.PI * 2);
+        ctx.fill();
+
+        const grad = ctx.createRadialGradient(-item.r * 0.3, -item.r * 0.3, 1, 0, 0, item.r);
+        grad.addColorStop(0, '#ffea79');
+        grad.addColorStop(0.7, '#f59e0b');
+        grad.addColorStop(1, '#d97706');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, item.r, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, item.r * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = '#78350f';
+        ctx.font = `bold ${Math.round(item.r * 1.05)}px 'Rubik', sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('$', 0, 1);
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+        ctx.beginPath();
+        ctx.arc(-item.r * 0.35, -item.r * 0.35, item.r * 0.28, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    }
+
+    // 4. Отрисовка мультяшной бомбы с горящим фитилём
+    function drawBomb(item) {
+      ctx.save();
+      ctx.translate(item.x, item.y);
+
+      const r = item.r;
+
+      // Фитиль (шнур)
+      ctx.strokeStyle = '#eaeaea';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -r * 0.8);
+      ctx.quadraticCurveTo(r * 0.6, -r * 1.5, r * 0.8, -r * 1.4);
+      ctx.stroke();
+
+      // Горлышко бомбы
+      ctx.fillStyle = '#1e232e';
+      ctx.fillRect(-r * 0.3, -r * 1.15, r * 0.6, r * 0.35);
+
+      // Сфера бомбы
+      const bombGrad = ctx.createRadialGradient(-r * 0.35, -r * 0.35, r * 0.1, 0, 0, r);
+      bombGrad.addColorStop(0, '#4b5563');
+      bombGrad.addColorStop(0.4, '#1f2937');
+      bombGrad.addColorStop(1, '#090d16');
+
+      ctx.fillStyle = bombGrad;
+      ctx.strokeStyle = '#05070a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Белый мультяшный блик
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.ellipse(-r * 0.35, -r * 0.35, r * 0.25, r * 0.15, -Math.PI / 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Горящие искры на кончике фитиля
+      const sparkX = r * 0.8;
+      const sparkY = -r * 1.4;
+      const sparkGrad = ctx.createRadialGradient(sparkX, sparkY, 1, sparkX, sparkY, 10);
+      sparkGrad.addColorStop(0, '#ffffff');
+      sparkGrad.addColorStop(0.3, '#fef08a');
+      sparkGrad.addColorStop(0.7, '#f97316');
+      sparkGrad.addColorStop(1, 'rgba(239, 68, 68, 0)');
+
+      ctx.fillStyle = sparkGrad;
+      ctx.beginPath();
+      ctx.arc(sparkX, sparkY, 11 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    // 5. Всплывающий текст "+10" над кошельком
+    function drawFloatingTexts() {
+      floatingTexts.forEach(ft => {
+        if (!ft) return;
+        ctx.save();
+        ctx.font = `900 ${Math.round(ft.size)}px 'Rubik', sans-serif`;
+        ctx.fillStyle = ft.color;
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 4;
+        ctx.textAlign = 'center';
+        ctx.globalAlpha = ft.alpha;
+        ctx.strokeText(ft.text, ft.x, ft.y);
+        ctx.fillText(ft.text, ft.x, ft.y);
+        ctx.restore();
+      });
+    }
+
+    // 6. Отрисовка частиц взрыва и блеска
+    function drawParticles() {
+      particles.forEach(p => {
+        if (!p) return;
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color;
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        if (p.isCoinFragment) {
+          ctx.beginPath();
+          ctx.arc(0, 0, p.size, 0, Math.PI);
+          ctx.fill();
+        } else {
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+        }
+        ctx.restore();
+      });
+    }
+
+    /* =====================================================================
+       СПАВН И ИГРОВАЯ ФИЗИКА
+       ===================================================================== */
+    function spawnCoin(customX = null) {
+      const radius = Math.min(26, Math.max(18, width * 0.052));
+      coins.push({
+        x: customX !== null ? customX : radius + Math.random() * (width - radius * 2),
+        y: -35,
+        r: radius,
+        vy: 210 + Math.random() * 80,
+        swayPhase: Math.random() * Math.PI * 2,
+        swaySpeed: 3 + Math.random() * 3,
+        rot: 0
+      });
+    }
+
+    function spawnBomb(isScriptedNearWallet = false) {
+      const radius = Math.min(26, width * 0.068);
+      let targetX = radius + Math.random() * (width - radius * 2);
+
+      // Если это кульминационная бомба из кадра 3 — целится прямо над кошельком!
+      if (isScriptedNearWallet) {
+        targetX = wallet.x + wallet.w / 2;
+      }
+
+      bombs.push({
+        x: targetX,
+        y: -35,
+        r: radius,
+        vy: 190 + Math.random() * 60,
+        isScripted: isScriptedNearWallet
+      });
+    }
+
+    function addScorePopup(x, y, text = '+10') {
+      floatingTexts.push({
+        x: x,
+        y: y,
+        text: text,
+        size: 26,
+        alpha: 1.0,
+        color: '#fbbf24',
+        vy: -90
+      });
+    }
+
+    function triggerBoomExplosion(bombX, bombY) {
+      sound.playExplosion();
+
+      // Очищаємо монети та інші бомби, щоб зупинити їх падіння
+      coins = [];
+      bombs = [];
+
+      // Напис "BOMB!!!" з'являється саме в момент зіткнення з бомбою
+      dangerBanner.classList.remove('hidden');
+
+      // Вспышка на весь экран
+      flashOverlay.classList.remove('hidden');
+      flashOverlay.classList.add('flash-boom');
+      setTimeout(() => {
+        flashOverlay.classList.remove('flash-boom');
+        flashOverlay.classList.add('hidden');
+      }, 700);
+
+      // Спавн 50+ обломков и монет
+      for (let i = 0; i < 60; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 100 + Math.random() * 450;
+        particles.push({
+          x: bombX,
+          y: bombY,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed - 120,
+          size: 6 + Math.random() * 12,
+          color: ['#ef4444', '#f59e0b', '#fbbf24', '#1f2937', '#ffffff'][Math.floor(Math.random() * 5)],
+          alpha: 1.0,
+          decay: 0.8 + Math.random() * 1.2,
+          rot: Math.random() * Math.PI,
+          vRot: (Math.random() - 0.5) * 12,
+          isCoinFragment: Math.random() > 0.5
+        });
+      }
+
+      // Переход в состояние 4. БУМ (11-15 сек)
+      currentState = STATES.BOOM;
+      originalScoreBeforeBoom = Math.max(score, 89);
+      halvedScore = Math.floor(originalScoreBeforeBoom / 2); // Срез на 50%!
+
+      finalOriginalScore.textContent = originalScoreBeforeBoom;
+      finalHalvedScore.textContent = halvedScore;
+      gameFrame.classList.remove('danger-border');
+
+      setTimeout(() => {
+        dangerBanner.classList.add('hidden');
+        resultModal.classList.remove('hidden');
+      }, 800);
+    }
+
+    /* =====================================================================
+       ГЛАВНЫЙ ЦИКЛ ОБНОВЛЕНИЯ (UPDATE & RENDER)
+       ===================================================================== */
+    function update(dt) {
+      // Якщо гра зупинена (у меню старту або після фіналу/плашки) — зупиняємо рух і спавн
+      if (currentState === STATES.HOOK || currentState === STATES.BOOM) {
+        // Оновлюємо лише частинки вибуху, поки вони не розсіються
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          if (!p) continue;
+          p.x += p.vx * dt;
+          p.y += p.vy * dt;
+          p.vy += 650 * dt;
+          p.rot += p.vRot * dt;
+          p.alpha -= dt * p.decay;
+          if (p.alpha <= 0) {
+            particles.splice(i, 1);
+          }
+        }
+        return;
+      }
+
+      // Плавное следование кошелька за пальцем/курсором
+      wallet.x += (wallet.targetX - wallet.x) * Math.min(1, dt * 22);
+      // Ограничение по границам экрана
+      wallet.x = Math.max(6, Math.min(width - wallet.w - 6, wallet.x));
+      // Затухание покачивания кошелька
+      wallet.wobble *= 0.9;
+
+      // Облака
+      clouds.forEach(c => {
+        c.x += c.speed * dt;
+        if (c.x > width + 60) c.x = -80;
+      });
+
+      // Если в меню ХУКА — просто фоновая анимация
+      if (currentState === STATES.HOOK) {
+        return;
+      }
+
+      // ТАЙМЕРЫ И СЦЕНАРИЙ TIKTOK (15 сек)
+      if (currentState === STATES.PLAYING || currentState === STATES.SLOWMO) {
+        gameTime += dt; // постоянная естественная скорость без замедления
+
+        // 1) В режиме TikTok ролика воспроизводим сценарий без замедления:
+        if (gameMode === 'TIKTOK_REEL') {
+          // Накопление счета к 70+
+          if (gameTime > 1.5 && !scriptedBombSpawned && score >= 70) {
+            currentState = STATES.SLOWMO;
+            gameFrame.classList.add('danger-border');
+            sound.playDanger();
+            spawnBomb(true); // Бомба падает на нормальной скорости
+            scriptedBombSpawned = true;
+          }
+        }
+
+        // Спавн монет на стабильной скорости
+        coinSpawnTimer += dt;
+        const coinInterval = 0.22;
+        if (coinSpawnTimer > coinInterval) {
+          coinSpawnTimer = 0;
+          spawnCoin();
+        }
+
+        // Спавн обычных случайных бомб (в аркадном режиме или на ранних секундах)
+        bombSpawnTimer += dt;
+        if (bombSpawnTimer > (gameMode === 'ENDLESS' ? 2.2 : 4.0)) {
+          bombSpawnTimer = 0;
+          spawnBomb(false);
+        }
+      }
+
+      // 2) Физика падающих монет (без замедления)
+      for (let i = coins.length - 1; i >= 0; i--) {
+        const c = coins[i];
+        if (!c) continue;
+        c.y += c.vy * dt;
+        c.swayPhase += c.swaySpeed * dt;
+        // М'яке похитування в польоті, щоб монетка залишалася верхівкою догори
+        c.rot = Math.sin(c.swayPhase) * 0.16;
+
+        // Коллизия с кошельком
+        if (
+          c.y + c.r >= wallet.y &&
+          c.y - c.r <= wallet.y + wallet.h &&
+          c.x + c.r >= wallet.x &&
+          c.x - c.r <= wallet.x + wallet.w
+        ) {
+          // Поймали монету! +10
+          score += 10;
+          coinCountText.textContent = score;
+
+          // Эффект увеличения счетчика
+          coinHud.style.transform = 'scale(1.22)';
+          setTimeout(() => { coinHud.style.transform = 'scale(1)'; }, 130);
+
+          wallet.wobble = (c.x < wallet.x + wallet.w / 2 ? -0.12 : 0.12);
+          sound.playCoin();
+          addScorePopup(c.x, wallet.y - 10, '+10');
+
+          // Если в аркадном режиме набрали 100 — победа!
+          if (score >= 100 && currentState !== STATES.BOOM) {
+            triggerVictory();
+            break; // Немедленно прерываем цикл, так как triggerVictory очистил coins
+          }
+
+          coins.splice(i, 1);
+          continue;
+        }
+
+        // Улетела за экран
+        if (c.y > height - 60) {
+          coins.splice(i, 1);
+        }
+      }
+
+      if (currentState === STATES.BOOM) return;
+
+      // 3) Физика бомб (без замедления)
+      for (let i = bombs.length - 1; i >= 0; i--) {
+        const b = bombs[i];
+        if (!b) continue;
+        b.y += b.vy * dt;
+
+        // Коллизия бомбы с кошельком -> БУМ!
+        if (
+          b.y + b.r >= wallet.y + 4 &&
+          b.y - b.r <= wallet.y + wallet.h &&
+          b.x + b.r >= wallet.x + 8 &&
+          b.x - b.r <= wallet.x + wallet.w - 8
+        ) {
+          triggerBoomExplosion(b.x, b.y);
+          break;
+        }
+
+        // Если бомба упала на пол и мы чудом увернулись!
+        if (b.y > height - 55) {
+          // Если это была кульминационная бомба и игрок увернулся
+          if (b.isScripted && currentState === STATES.SLOWMO) {
+            currentState = STATES.PLAYING;
+            dangerBanner.classList.add('hidden');
+            gameFrame.classList.remove('danger-border');
+          }
+          bombs.splice(i, 1);
+        }
+      }
+
+      if (currentState === STATES.BOOM) return;
+
+      // 4) Анимация всплывающих текстов +10
+      for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const ft = floatingTexts[i];
+        if (!ft) continue;
+        ft.y += ft.vy * dt;
+        ft.alpha -= dt * 1.5;
+        if (ft.alpha <= 0) {
+          floatingTexts.splice(i, 1);
+        }
+      }
+
+      // 5) Анимация частиц
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        if (!p) continue;
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 650 * dt; // гравитация
+        p.rot += p.vRot * dt;
+        p.alpha -= dt * p.decay;
+        if (p.alpha <= 0) {
+          particles.splice(i, 1);
+        }
+      }
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, width, height);
+
+      // Фон и небо
+      drawSky();
+
+      // Монеты
+      coins.forEach(c => { if (c) drawCoin(c); });
+
+      // Бомбы
+      bombs.forEach(b => { if (b) drawBomb(b); });
+
+      // Всплывающие надписи
+      drawFloatingTexts();
+
+      // Частицы
+      drawParticles();
+
+      // Кошелек
+      drawWallet(wallet.x, wallet.y, wallet.w, wallet.h, wallet.wobble);
+    }
+
+    function gameLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1);
+      lastTimestamp = timestamp;
+
+      update(dt);
+      render();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    /* =====================================================================
+       УПРАВЛЕНИЕ: МЫШЬ, ТАЧ-СКРИН И КЛАВИАТУРА
+       ===================================================================== */
+    function setWalletTargetFromPointer(clientX) {
+      if (currentState === STATES.HOOK || currentState === STATES.BOOM) return;
+      const rect = canvas.getBoundingClientRect();
+      const relativeX = clientX - rect.left;
+      wallet.targetX = relativeX - wallet.w / 2;
+    }
+
+    // Мышь
+    window.addEventListener('mousemove', (e) => {
+      setWalletTargetFromPointer(e.clientX);
+    });
+
+    // Сенсорное управление на смартфонах
+    canvas.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 0) {
+        setWalletTargetFromPointer(e.touches[0].clientX);
+      }
+      e.preventDefault();
+    }, { passive: false });
+
+    canvas.addEventListener('touchstart', (e) => {
+      sound.init();
+      if (e.touches.length > 0) {
+        setWalletTargetFromPointer(e.touches[0].clientX);
+      }
+    }, { passive: true });
+
+    // Клавиатура (стрелки влево-вправо / A-D)
+    window.addEventListener('keydown', (e) => {
+      if (currentState === STATES.HOOK || currentState === STATES.BOOM) return;
+      sound.init();
+      const step = 45;
+      if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+        wallet.targetX = Math.max(10, wallet.targetX - step);
+      } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+        wallet.targetX = Math.min(width - wallet.w - 10, wallet.targetX + step);
+      }
+    });
+
+    /* =====================================================================
+       ЛОГИКА ПЕРЕКЛЮЧЕНИЯ И РЕСТАРТА
+       ===================================================================== */
+    function startNewGame() {
+      sound.init();
+      currentState = STATES.PLAYING;
+      score = 0;
+      gameTime = 0;
+      timeScale = 1.0;
+      coinSpawnTimer = 0;
+      bombSpawnTimer = 0;
+      slowMoTriggered = false;
+      scriptedBombSpawned = false;
+
+      coins = [];
+      bombs = [];
+      particles = [];
+      floatingTexts = [];
+
+      coinCountText.textContent = '0';
+      hookOverlay.classList.add('hidden');
+      dangerBanner.classList.add('hidden');
+      resultModal.classList.add('hidden');
+      gameFrame.classList.remove('danger-border');
+
+      // Начальный залп монет для динамичного старта (Хук)
+      spawnCoin(width * 0.3);
+      spawnCoin(width * 0.5);
+      spawnCoin(width * 0.7);
+    }
+
+    function triggerVictory() {
+      sound.playWin();
+      currentState = STATES.BOOM;
+      coins = [];
+      bombs = [];
+      originalScoreBeforeBoom = score;
+      halvedScore = score; // Без штрафа!
+
+      finalOriginalScore.textContent = score;
+      finalOriginalScore.classList.remove('line-through', 'decoration-red-500');
+      finalHalvedScore.textContent = '100 🏆';
+      penaltyBadge.textContent = '100% VICTORY! NO DAMAGE';
+      penaltyBadge.className = 'inline-block bg-green-500 text-slate-950 font-black text-lg px-4 py-1 rounded-xl shadow-md my-1 animate-bounce';
+
+      resultModal.classList.remove('hidden');
+    }
+
+    // Слушатели кнопок
+    startChallengeBtn.addEventListener('click', startNewGame);
+    retryBtn.addEventListener('click', startNewGame);
+    restartQuickBtn.addEventListener('click', startNewGame);
+
+    // Переключение режимов
+    modeBtn.addEventListener('click', () => {
+      if (gameMode === 'TIKTOK_REEL') {
+        gameMode = 'ENDLESS';
+        modeLabel.textContent = 'Arcade 100';
+        showToast('Mode: Arcade to 100 coins');
+      } else {
+        gameMode = 'TIKTOK_REEL';
+        modeLabel.textContent = '15s Reel';
+        showToast('Mode: 15s Reel (Storyboard flow)');
+      }
+      startNewGame();
+    });
+
+    // Переключатель звука
+    soundToggle.addEventListener('click', () => {
+      sound.init();
+      sound.enabled = !sound.enabled;
+      soundIcon.textContent = sound.enabled ? '🔊' : '🔇';
+      showToast(sound.enabled ? 'Sound enabled' : 'Sound muted');
+    });
+
+    // Копирование счета в буфер обмена
+    shareScoreBtn.addEventListener('click', () => {
+      const textToCopy = `My TikTok Coins score: ${halvedScore} coins! Can you reach 100 without bombs? 🪙💥`;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy).then(() => {
+          showToast('Result copied!');
+        }).catch(() => fallbackCopy(textToCopy));
+      } else {
+        fallbackCopy(textToCopy);
+      }
+    });
+
+    function fallbackCopy(text) {
+      const tempInput = document.createElement('textarea');
+      tempInput.value = text;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast('Result copied!');
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => {
+        toast.style.opacity = '0';
+      }, 1900);
+    }
+
+    // Запуск приложения
+    window.onload = function() {
+      resizeCanvas();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
